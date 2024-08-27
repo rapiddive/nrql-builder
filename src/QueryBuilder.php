@@ -6,7 +6,7 @@ namespace Rapiddive\NrqlBuilder;
 use Exception;
 use InvalidArgumentException;
 use LogicException;
-use Upscale\Nrql\Moment\MomentAbstract;
+use Rapiddive\NrqlBuilder\Moment\MomentAbstract;
 
 /**
  * Builder of a query in New Relic Query Language (NRQL) with fluent interface to set query parts in an arbitrary order
