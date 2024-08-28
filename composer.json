@@ -18,7 +18,6 @@
             "email": "rapiddive1@gmail.com"
         }
     ],
-    "minimum-stability": "stable",
     "autoload-dev": {
         "psr-4": {
             "Rapiddive\\": "test/"
