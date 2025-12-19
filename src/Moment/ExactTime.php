@@ -10,27 +10,15 @@ use Carbon\CarbonInterface;
  */
 class ExactTime extends MomentAbstract
 {
-    private CarbonInterface $time;
-
-    /**
-     * @param CarbonInterface $time
-     */
-    public function __construct(CarbonInterface $time)
+    public function __construct(private readonly CarbonInterface $time)
     {
-        $this->time = $time;
     }
 
-    /**
-     * @return CarbonInterface
-     */
     public function getTime(): CarbonInterface
     {
         return $this->time;
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function renderNrql(): string
     {
         return "'" . $this->time->format('Y-m-d H:i:s T') . "'";

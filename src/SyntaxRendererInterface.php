@@ -10,8 +10,6 @@ interface SyntaxRendererInterface
 {
     /**
      * Return representation in NRQL syntax
-     *
-     * @return string
      */
     public function renderNrql(): string;
 }

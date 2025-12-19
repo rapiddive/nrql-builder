@@ -10,8 +10,4 @@ use Rapiddive\NrqlBuilder\SyntaxRendererInterface;
  */
 abstract class MomentAbstract implements SyntaxRendererInterface
 {
-    /**
-     * {@inheritdoc}
-     */
-    abstract public function renderNrql(): string;
 }

@@ -8,9 +8,6 @@ namespace Rapiddive\NrqlBuilder\Moment;
  */
 class Yesterday extends MomentAbstract
 {
-    /**
-     * {@inheritdoc}
-     */
     public function renderNrql(): string
     {
         return 'YESTERDAY';
