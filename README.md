@@ -9,6 +9,10 @@ The New Relic Query Language (NRQL) is an SQL-flavored query language for making
 
 This project is a PHP library for assembling NRQL queries in object-oriented applications. Library implements the official [NRQL specification](https://docs.newrelic.com/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference). It offers a "fluent" interface to specify query parts in an arbitrary order. That allows different application parts to influence the query w/o worrying about the query assembly order. Query integrity validation is performed upon rendering. Library provides object-oriented representation for complex elements of NRQL syntax. That enables code completion and avoids typos in contrast to plain text queries.
 
+## Requirements
+
+PHP >= 8.0
+
 ## Installation
 
 Library is to be installed via [Composer](https://getcomposer.org/) as a project dependency in `composer.json`:
@@ -22,6 +26,8 @@ Library is to be installed via [Composer](https://getcomposer.org/) as a project
 
 ## Usage
 
+### Full query
+
 The example below demonstrates a query with all available clauses:
 ```php
 use Carbon\Carbon;
@@ -31,22 +37,56 @@ use Rapiddive\NrqlBuilder\Moment\Yesterday;
 use Rapiddive\NrqlBuilder\QueryBuilder;
 use Rapiddive\NrqlBuilder\TimePeriod;
 
-$nrql = new QueryBuilder();
-$nrql->select([
-    'userAgentName',
-])
-    ->from([
-        'PageView',
-    ])
+$nrql = (new QueryBuilder())
+    ->select(['userAgentName'])
+    ->from(['PageView'])
     ->where('userAgentOS = "Windows"')
     ->facet('countryCode')
     ->limit(20)
     ->since(new TimeAgo(new TimePeriod(4, TimePeriod::UNIT_DAYS)))
     ->until(new Yesterday())
-    ->compareWith(new ExactTime(new Carbon('2015-01-01 00:00:00')))
+    ->compareWith(new ExactTime(new Carbon('2015-01-01 00:00:00', 'UTC')))
     ->timeSeries(new TimePeriod(1, TimePeriod::UNIT_HOURS));
 
 echo $nrql;
+```
+
+### Reusing a builder as a template
+
+`resetPart()` clears a single clause so it can be reassigned, letting one builder serve as a base for multiple related queries:
+
+```php
+$base = (new QueryBuilder())
+    ->selectAll()
+    ->from(['PageView'])
+    ->where('userAgentOS = "Windows"');
+
+echo $base; // SELECT * FROM PageView WHERE userAgentOS = "Windows"
+
+$base->resetPart(QueryBuilder::PART_WHERE)->where('userAgentOS = "Mac"');
+
+echo $base; // SELECT * FROM PageView WHERE userAgentOS = "Mac"
+```
+
+### Custom moment types
+
+`since()`, `until()`, and `compareWith()` accept any implementation of `MomentInterface`, so you can define your own time expressions beyond the built-in `TimeAgo`, `Yesterday`, and `ExactTime`:
+
+```php
+use Rapiddive\NrqlBuilder\Moment\MomentInterface;
+
+class BeginningOfMonth implements MomentInterface
+{
+    public function renderNrql(): string
+    {
+        return "'" . date('Y-m-01 00:00:00') . " UTC'";
+    }
+}
+
+$nrql = (new QueryBuilder())
+    ->selectAll()
+    ->from(['PageView'])
+    ->since(new BeginningOfMonth());
 ```
 
 ## Limitations

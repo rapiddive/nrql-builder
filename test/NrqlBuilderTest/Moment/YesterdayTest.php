@@ -15,9 +15,7 @@ class YesterdayTest extends TestCase
 
     public function testRenderNrql()
     {
-        $actual = $this->subject->renderNrql();
-        $this->assertNotEmpty($actual);
-        $this->assertSame($actual, $this->subject->renderNrql());
+        $this->assertSame('YESTERDAY', $this->subject->renderNrql());
     }
 
     protected function setUp(): void

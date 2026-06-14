@@ -3,10 +3,9 @@ declare(strict_types=1);
 
 namespace Rapiddive\NrqlBuilder;
 
-use Exception;
 use InvalidArgumentException;
 use LogicException;
-use Rapiddive\NrqlBuilder\Moment\MomentAbstract;
+use Rapiddive\NrqlBuilder\Moment\MomentInterface;
 
 /**
  * Builder of a query in New Relic Query Language (NRQL) with fluent interface to set query parts in an arbitrary order
@@ -15,9 +14,6 @@ use Rapiddive\NrqlBuilder\Moment\MomentAbstract;
  */
 class QueryBuilder implements SyntaxRendererInterface
 {
-    /**#@+
-     * Available parts of a query in NRQL
-     */
     const PART_SELECT = 'SELECT';
     const PART_FROM = 'FROM';
     const PART_WHERE = 'WHERE';
@@ -27,15 +23,9 @@ class QueryBuilder implements SyntaxRendererInterface
     const PART_UNTIL = 'UNTIL';
     const PART_COMPARE_WITH = 'COMPARE WITH';
     const PART_TIME_SERIES = 'TIMESERIES';
-
     const PART_WITH_TIMEZONE = 'WITH TIMEZONE';
-    /**#@-*/
 
-    /**
-     * Rendered parts of a query
-     *
-     * @var array<string,mixed>
-     */
+    /** @var array<string,string|int> */
     protected array $parts = [
         self::PART_SELECT => '',
         self::PART_FROM => '',
@@ -46,28 +36,29 @@ class QueryBuilder implements SyntaxRendererInterface
         self::PART_UNTIL => '',
         self::PART_COMPARE_WITH => '',
         self::PART_TIME_SERIES => '',
-        self::PART_WITH_TIMEZONE => ''
+        self::PART_WITH_TIMEZONE => '',
     ];
 
-    /**
-     * @param string|null $timezone
-     * @return $this
-     */
-    public function withTimeZone(string $timezone = null): QueryBuilder
+    public function withTimeZone(?string $timezone = null): static
     {
-        return $this->setPart(self::PART_WITH_TIMEZONE, !$timezone ? '' : $timezone);
+        return $this->setPart(self::PART_WITH_TIMEZONE, $timezone !== null ? "'$timezone'" : '');
     }
 
     /**
-     * Assign NRQL expression to a query part with no syntax validation
+     * Clear a previously assigned query part, allowing it to be set again.
      *
-     * @param string $part Part name
-     * @param string|int $value
-     * @return $this
-     * @throws InvalidArgumentException Thrown when specified query part is not supported
-     * @throws InvalidArgumentException Thrown when attempting to override existing value of a query part
+     * @throws InvalidArgumentException When the part name is not recognised
      */
-    protected function setPart(string $part, string|int $value): QueryBuilder
+    public function resetPart(string $part): static
+    {
+        if (!array_key_exists($part, $this->parts)) {
+            throw new InvalidArgumentException("Query part '$part' is not recognized.");
+        }
+        $this->parts[$part] = '';
+        return $this;
+    }
+
+    protected function setPart(string $part, string|int $value): static
     {
         if (!array_key_exists($part, $this->parts)) {
             throw new InvalidArgumentException("Query part '$part' is not recognized.");
@@ -79,86 +70,61 @@ class QueryBuilder implements SyntaxRendererInterface
         return $this;
     }
 
-    /**
-     * Assign SELECT statement to specify what the query is reporting
-     *
-     * @param array $attributes Attribute names and/or attribute expressions
-     * @return $this
-     */
-    public function select(array $attributes): QueryBuilder
+    public function select(array $attributes): static
     {
         return $this->setPart(self::PART_SELECT, implode(', ', $attributes));
     }
 
-    /**
-     * Assign SELECT statement to specify that the query is reporting all available attributes
-     *
-     * @return $this
-     */
-    public function selectAll(): QueryBuilder
+    public function selectAll(): static
     {
         return $this->setPart(self::PART_SELECT, '*');
     }
 
-    /**
-     * Assign FROM clause to specify the event type(s) containing the attributes being queried
-     *
-     * @param array $events Event names
-     * @return $this
-     */
-    public function from(array $events): QueryBuilder
+    public function from(array $events): static
     {
         return $this->setPart(self::PART_FROM, implode(', ', $events));
     }
 
-    /**
-     * Assign WHERE clause to specify a series of one or more conditions separated by the keywords AND or OR
-     *
-     * @param string $conditions Conditions expression
-     * @return $this
-     */
-    public function where(string $conditions): QueryBuilder
+    public function where(string $conditions): static
     {
         return $this->setPart(self::PART_WHERE, $conditions);
     }
 
-    /**
-     * Assign FACET clause to break out your data by any string attribute
-     *
-     * @param string $attribute Attribute name or expression
-     * @return $this
-     */
-    public function facet(string $attribute): QueryBuilder
+    public function facet(string $attribute): static
     {
         return $this->setPart(self::PART_FACET, $attribute);
     }
 
-    /**
-     * Assign LIMIT clause to constrain the number of values returned
-     *
-     * @param int $count
-     * @return $this
-     */
-    public function limit(int $count): QueryBuilder
+    /** @throws InvalidArgumentException When $count is less than 1 */
+    public function limit(int $count): static
     {
+        if ($count < 1) {
+            throw new InvalidArgumentException('LIMIT must be a positive integer.');
+        }
         return $this->setPart(self::PART_LIMIT, $count);
     }
 
-    /**
-     * Assign SINCE clause to define the beginning of a time range across which to pull data
-     *
-     * @param MomentAbstract $moment
-     * @return $this
-     */
-    public function since(MomentAbstract $moment): QueryBuilder
+    public function since(MomentInterface $moment): static
     {
         return $this->setPart(self::PART_SINCE, $moment->renderNrql());
     }
 
-    /**
-     * Return complete query assembled from individual pieces
-     * {@inheritdoc}
-     */
+    public function until(MomentInterface $moment): static
+    {
+        return $this->setPart(self::PART_UNTIL, $moment->renderNrql());
+    }
+
+    public function compareWith(MomentInterface $moment): static
+    {
+        return $this->setPart(self::PART_COMPARE_WITH, $moment->renderNrql());
+    }
+
+    public function timeSeries(?TimePeriod $period = null, string $default = 'AUTO'): static
+    {
+        return $this->setPart(self::PART_TIME_SERIES, $period ? $period->renderNrql() : $default);
+    }
+
+    /** {@inheritdoc} */
     public function renderNrql(): string
     {
         $this->validate($this->parts);
@@ -171,12 +137,12 @@ class QueryBuilder implements SyntaxRendererInterface
         return $result;
     }
 
-    /**
-     * Perform integrity check on specified query parts
-     *
-     * @param array $parts Set of parts to validate
-     * @throws LogicException Thrown when required query parts are missing or parts contradict to each other
-     */
+    public function __toString(): string
+    {
+        return $this->renderNrql();
+    }
+
+    /** @throws LogicException When required parts are missing or contradict each other */
     protected function validate(array $parts): void
     {
         if (empty($parts[self::PART_SELECT])) {
@@ -190,54 +156,6 @@ class QueryBuilder implements SyntaxRendererInterface
             && empty($parts[self::PART_UNTIL])
         ) {
             throw new LogicException('COMPARE WITH clause requires a SINCE or UNTIL clause.');
-        }
-    }
-
-    /**
-     * Assign SINCE clause to define the end a time range across which to pull data
-     *
-     * @param MomentAbstract $moment
-     * @return $this
-     */
-    public function until(MomentAbstract $moment): QueryBuilder
-    {
-        return $this->setPart(self::PART_UNTIL, $moment->renderNrql());
-    }
-
-    /**
-     * Assign COMPARE WITH clause to compare the values for two different time ranges
-     *
-     * @param MomentAbstract $moment Beginning moment of comparison range
-     * @return $this
-     */
-    public function compareWith(MomentAbstract $moment): QueryBuilder
-    {
-        return $this->setPart(self::PART_COMPARE_WITH, $moment->renderNrql());
-    }
-
-    /**
-     * Assign TIMESERIES clause to return data as a time series broken out by a specified period of time
-     *
-     * @param TimePeriod|null $period Specified time period or automatic detection if NULL specified
-     * @return $this
-     */
-    public function timeSeries(TimePeriod $period = null, $default = 'AUTO'): QueryBuilder
-    {
-        return $this->setPart(self::PART_TIME_SERIES, $period ? $period->renderNrql() : $default);
-    }
-
-    /**
-     * Return rendered query when instance is used in a string context.
-     * Convert exceptions to PHP errors, because exceptions are prohibited for this magic method.
-     *
-     * @return string
-     */
-    public function __toString()
-    {
-        try {
-            return $this->renderNrql();
-        } catch (Exception $e) {
-            trigger_error($e->getMessage(), E_USER_ERROR);
         }
     }
 }
