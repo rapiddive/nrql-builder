@@ -56,9 +56,7 @@ $nrql = (new QueryBuilder())
     ->withTimeZone('UTC');
 
 echo $nrql;
-// SELECT userAgentName FROM PageView WHERE userAgentOS = "Windows"
-// FACET countryCode LIMIT 20 SINCE 4 days AGO UNTIL YESTERDAY
-// COMPARE WITH '2015-01-01 00:00:00 UTC' TIMESERIES 1 hours WITH TIMEZONE 'UTC'
+// SELECT userAgentName FROM PageView WHERE userAgentOS = "Windows" FACET countryCode LIMIT 20 SINCE 4 days AGO UNTIL YESTERDAY COMPARE WITH '2015-01-01 00:00:00 UTC' TIMESERIES 1 hours WITH TIMEZONE 'UTC'
 ```
 
 ### Select all attributes
