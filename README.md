@@ -1,25 +1,30 @@
-INSPIRRED FROM https://github.com/upscalesoftware/newrelic-query-builder 
+# NRQL Query Builder
 
-[![Build Status](https://api.travis-ci.org/upscalesoftware/newrelic-query-builder.svg?branch=master)](https://travis-ci.org/upscalesoftware/newrelic-query-builder)
+[![CI](https://github.com/rapiddive/nrql-builder/actions/workflows/run-unit-test.yml/badge.svg)](https://github.com/rapiddive/nrql-builder/actions/workflows/run-unit-test.yml)
 
-Query Builder for NRQL
-======================
+A PHP library for assembling [New Relic Query Language (NRQL)](https://docs.newrelic.com/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference) queries in object-oriented applications.
 
-The New Relic Query Language (NRQL) is an SQL-flavored query language for making calls against the Insights Events database.
+The library implements the official NRQL specification and offers a fluent interface to specify query parts in an arbitrary order, allowing different application parts to influence a query without worrying about assembly order. Query integrity validation is performed upon rendering. Object-oriented representations for time expressions enable code completion and avoid typos.
 
-This project is a PHP library for assembling NRQL queries in object-oriented applications. Library implements the official [NRQL specification](https://docs.newrelic.com/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference). It offers a "fluent" interface to specify query parts in an arbitrary order. That allows different application parts to influence the query w/o worrying about the query assembly order. Query integrity validation is performed upon rendering. Library provides object-oriented representation for complex elements of NRQL syntax. That enables code completion and avoids typos in contrast to plain text queries.
+Inspired by [upscalesoftware/newrelic-query-builder](https://github.com/upscalesoftware/newrelic-query-builder).
 
 ## Requirements
 
-PHP >= 8.0
+- PHP >= 8.0
+- [nesbot/carbon](https://carbon.nesbot.com/) ^3.11 (pulled in automatically via Composer)
 
 ## Installation
 
-Library is to be installed via [Composer](https://getcomposer.org/) as a project dependency in `composer.json`:
-```yaml
+```bash
+composer require rapiddive/nrql-builder
+```
+
+Or add it to `composer.json` manually:
+
+```json
 {
     "require": {
-        "rapiddive/nrql-builder": "*"
+        "rapiddive/nrql-builder": "^2.0"
     }
 }
 ```
@@ -28,7 +33,8 @@ Library is to be installed via [Composer](https://getcomposer.org/) as a project
 
 ### Full query
 
-The example below demonstrates a query with all available clauses:
+The example below demonstrates a query using all available clauses:
+
 ```php
 use Carbon\Carbon;
 use Rapiddive\NrqlBuilder\Moment\ExactTime;
@@ -46,9 +52,38 @@ $nrql = (new QueryBuilder())
     ->since(new TimeAgo(new TimePeriod(4, TimePeriod::UNIT_DAYS)))
     ->until(new Yesterday())
     ->compareWith(new ExactTime(new Carbon('2015-01-01 00:00:00', 'UTC')))
-    ->timeSeries(new TimePeriod(1, TimePeriod::UNIT_HOURS));
+    ->timeSeries(new TimePeriod(1, TimePeriod::UNIT_HOURS))
+    ->withTimeZone('UTC');
 
 echo $nrql;
+// SELECT userAgentName FROM PageView WHERE userAgentOS = "Windows"
+// FACET countryCode LIMIT 20 SINCE 4 days AGO UNTIL YESTERDAY
+// COMPARE WITH '2015-01-01 00:00:00 UTC' TIMESERIES 1 hours WITH TIMEZONE 'UTC'
+```
+
+### Select all attributes
+
+Use `selectAll()` as a shorthand for `SELECT *`:
+
+```php
+$nrql = (new QueryBuilder())
+    ->selectAll()
+    ->from(['PageView']);
+
+echo $nrql; // SELECT * FROM PageView
+```
+
+### Time series with auto bucket
+
+Call `timeSeries()` without a period to let New Relic choose the bucket size automatically:
+
+```php
+$nrql = (new QueryBuilder())
+    ->selectAll()
+    ->from(['PageView'])
+    ->timeSeries();
+
+echo $nrql; // SELECT * FROM PageView TIMESERIES AUTO
 ```
 
 ### Reusing a builder as a template
@@ -70,7 +105,7 @@ echo $base; // SELECT * FROM PageView WHERE userAgentOS = "Mac"
 
 ### Custom moment types
 
-`since()`, `until()`, and `compareWith()` accept any implementation of `MomentInterface`, so you can define your own time expressions beyond the built-in `TimeAgo`, `Yesterday`, and `ExactTime`:
+`since()`, `until()`, and `compareWith()` accept any implementation of `MomentInterface`, so you can define time expressions beyond the built-in `TimeAgo`, `Yesterday`, and `ExactTime`:
 
 ```php
 use Rapiddive\NrqlBuilder\Moment\MomentInterface;
@@ -89,14 +124,42 @@ $nrql = (new QueryBuilder())
     ->since(new BeginningOfMonth());
 ```
 
+## API Reference
+
+### `QueryBuilder` clauses
+
+| Method | NRQL clause | Notes |
+|---|---|---|
+| `select(array $attributes)` | `SELECT a, b` | Comma-joins the array |
+| `selectAll()` | `SELECT *` | Shorthand for wildcard |
+| `from(array $events)` | `FROM Event` | Comma-joins the array |
+| `where(string $conditions)` | `WHERE ...` | Raw condition string |
+| `facet(string $attribute)` | `FACET attr` | Raw attribute string |
+| `limit(int $count)` | `LIMIT N` | Throws on values < 1 |
+| `since(MomentInterface)` | `SINCE ...` | |
+| `until(MomentInterface)` | `UNTIL ...` | |
+| `compareWith(MomentInterface)` | `COMPARE WITH ...` | Requires `SINCE` or `UNTIL` |
+| `timeSeries(?TimePeriod, string $default='AUTO')` | `TIMESERIES ...` | `null` period uses `$default` |
+| `withTimeZone(?string $timezone)` | `WITH TIMEZONE 'tz'` | Value is auto-quoted |
+| `resetPart(string $part)` | — | Clears a clause for reassignment |
+
+Use the `QueryBuilder::PART_*` constants (e.g. `QueryBuilder::PART_WHERE`) when calling `resetPart()`.
+
+### Time expressions (`Moment`)
+
+| Class | Renders as | Constructor |
+|---|---|---|
+| `TimeAgo` | `N unit AGO` | `new TimeAgo(new TimePeriod(4, TimePeriod::UNIT_DAYS))` |
+| `Yesterday` | `YESTERDAY` | `new Yesterday()` |
+| `ExactTime` | `'Y-m-d H:i:s T'` | `new ExactTime(new Carbon('2024-01-01', 'UTC'))` |
+
+### `TimePeriod` units
+
+`TimePeriod::UNIT_MINUTES`, `UNIT_HOURS`, `UNIT_DAYS`, `UNIT_WEEKS`
+
 ## Limitations
 
-Some complex aspects of the NRQL syntax have not been implemented in an object-oriented manner. These include [Aggregator Functions](https://docs.newrelic.com/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#functions), [Math Operators](https://docs.newrelic.com/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-math) and logical operators (`AND`, `OR`, grouping). However, the library allows to utilize as complex expressions as needed in place of string arguments.
- 
-Free-format string arguments:
-- Attributes of `SELECT` statement, including optional `AS` clause
-- Conditions of `WHERE` clause
-- Attribute of `FACET` clause
+Some complex aspects of the NRQL syntax have not been implemented in an object-oriented manner. These include [Aggregator Functions](https://docs.newrelic.com/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#functions), [Math Operators](https://docs.newrelic.com/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-math), and logical operators (`AND`, `OR`, grouping). The library accommodates these as free-format string arguments to `select()`, `where()`, and `facet()`.
 
 ## License
 
